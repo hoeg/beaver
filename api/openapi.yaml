@@ -1,0 +1,40 @@
+openapi: 3.0.0
+info:
+  title: My GitHub App API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /webhook:
+    post:
+      summary: Webhook for branch merge event
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+      responses:
+        '200':
+          description: Webhook successfully processed
+components:
+  schemas:
+    WebhookPayload:
+      type: object
+      properties:
+        event_type:
+          type: string
+          enum:
+            - branch_merge
+        branch_name:
+          type: string
+        commit_sha:
+          type: string
+securitySchemes:
+  BearerAuth:
+    type: apiKey
+    in: header
+    name: Authorization
+    description: Bearer token obtained from GitHub webhook secret
