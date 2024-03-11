@@ -8,21 +8,24 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 func ListenForEvents() {
+
 	// Use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", "/path/to/your/kubeconfig")
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		runtime.HandleError(err)
+		return
 	}
 
 	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err.Error())
+		runtime.HandleError(err)
+		return
 	}
 	// Create a new shared informer factory
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
@@ -62,7 +65,6 @@ func ListenForEvents() {
 	// Wait for the informer to sync
 	if !cache.WaitForCacheSync(stopCh, eventInformer.HasSynced) {
 		runtime.HandleError(fmt.Errorf("failed to sync informer cache"))
-		return
 	}
 
 	// Run until interrupted
