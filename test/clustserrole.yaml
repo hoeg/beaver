@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: beaver
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "watch", "list", "describe"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "describe"]
