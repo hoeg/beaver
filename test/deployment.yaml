@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beaver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beaver
+  template:
+    metadata:
+      labels:
+        app: beaver
+    spec:
+      serviceAccountName: beaver
+      containers:
+        - name: beaver
+          image: beaver:test
+          ports:
+            - containerPort: 8080
