@@ -1,10 +1,13 @@
 package events
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -36,12 +39,26 @@ func ListenForEvents() {
 	// Create a new event handler
 	eventHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			fmt.Printf("New event add: %v\n", obj)
 			event := obj.(*corev1.Event)
 			if event.InvolvedObject.Kind == "Pod" && (event.Reason == "Created" || event.Reason == "Updated") {
 				fmt.Println("New event:", event.Name)
+				pod, err := clientset.CoreV1().Pods(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+				if err != nil {
+					runtime.HandleError(err)
+					return
+				}
+				//from the pod, get the value of the annotation lunarway.com/artifact-id: 'atl-2779-derp-eb6283670d-5855a38e0c' and extract the eb6283670d part as the commit sha
+				artifactID := pod.Annotations["lunarway.com/artifact-id"]
+				// extract the substring eb6283670d from the artifactID, the commit sha is the last string after the hyphen before the last hyphen, we cannot garantee the length of the commit sha, so we cannot use a fixed length, so use a regex instead
+				commitSha := extractCommitSha(artifactID)
+				fmt.Println(commitSha)
+				// fmt.Println(artifactID)
+
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			fmt.Printf("New event udpated: %v\n", newObj)
 			// Handle event updates if needed
 			oldEvent := oldObj.(*corev1.Event)
 			newEvent := newObj.(*corev1.Event)
@@ -50,7 +67,7 @@ func ListenForEvents() {
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			// Handle event deletions if needed
+			fmt.Printf("New event delete: %v\n", obj)
 		},
 	}
 
@@ -58,8 +75,8 @@ func ListenForEvents() {
 	eventInformer.AddEventHandler(eventHandler)
 
 	// Start the informer
+	fmt.Println("Starting the event informer")
 	stopCh := make(chan struct{})
-	defer close(stopCh)
 	go eventInformer.Run(stopCh)
 
 	// Wait for the informer to sync
@@ -67,6 +84,25 @@ func ListenForEvents() {
 		runtime.HandleError(fmt.Errorf("failed to sync informer cache"))
 	}
 
-	// Run until interrupted
+	// Block until a signal is received
 	select {}
+}
+
+func extractCommitSha(artifactID string) string {
+	// Find the last hyphen
+	lastHyphenIndex := strings.LastIndex(artifactID, "-")
+	if lastHyphenIndex == -1 {
+		return ""
+	}
+
+	// Find the second last hyphen
+	secondLastHyphenIndex := strings.LastIndex(artifactID[:lastHyphenIndex], "-")
+	if secondLastHyphenIndex == -1 {
+		return ""
+	}
+
+	// Extract the commit sha
+	commitSha := artifactID[secondLastHyphenIndex+1 : lastHyphenIndex]
+
+	return commitSha
 }
