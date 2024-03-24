@@ -12,6 +12,7 @@ func Start() {
 
 	lf := lifecycle.New(lifecycle.DefaultConfig)
 	svc.RegisterLifecycle("web", lf)
+	lf.RegisterService(NewEventController())
 
 	lf.Start()
 	sig := lifecycle.NewSignalHandler(lf, nil)

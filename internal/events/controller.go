@@ -15,20 +15,21 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func ListenForEvents() {
+var stopCh chan struct{}
 
+func Start(ctx context.Context, errCh chan<- error) error {
 	// Use the current context in kubeconfig
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		runtime.HandleError(err)
-		return
+		return err
 	}
 
 	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		runtime.HandleError(err)
-		return
+		return err
 	}
 	// Create a new shared informer factory
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
@@ -76,7 +77,7 @@ func ListenForEvents() {
 
 	// Start the informer
 	fmt.Println("Starting the event informer")
-	stopCh := make(chan struct{})
+	stopCh = make(chan struct{})
 	go eventInformer.Run(stopCh)
 
 	// Wait for the informer to sync
@@ -84,8 +85,14 @@ func ListenForEvents() {
 		runtime.HandleError(fmt.Errorf("failed to sync informer cache"))
 	}
 
-	// Block until a signal is received
-	select {}
+	return nil
+}
+
+func Stop(ctx context.Context) error {
+	// Stop the informer
+	fmt.Println("Stopping the event informer")
+	close(stopCh)
+	return nil
 }
 
 func extractCommitSha(artifactID string) string {
