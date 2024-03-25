@@ -40,9 +40,8 @@ func Start(ctx context.Context, errCh chan<- error) error {
 	// Create a new event handler
 	eventHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			fmt.Printf("New event add: %v\n", obj)
 			event := obj.(*corev1.Event)
-			if event.InvolvedObject.Kind == "Pod" && (event.Reason == "Created" || event.Reason == "Updated") {
+			if event.InvolvedObject.Kind == "Pod" && (event.Reason == "Created" || event.Reason == "Updated" || event.Reason == "Scheduled") {
 				fmt.Println("New event:", event.Name)
 				pod, err := clientset.CoreV1().Pods(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 				if err != nil {
@@ -50,10 +49,10 @@ func Start(ctx context.Context, errCh chan<- error) error {
 					return
 				}
 				//from the pod, get the value of the annotation lunarway.com/artifact-id: 'atl-2779-derp-eb6283670d-5855a38e0c' and extract the eb6283670d part as the commit sha
-				artifactID := pod.Annotations["lunarway.com/artifact-id"]
+				artifactID := pod.Annotations["hoeg.com/artifact-id"]
 				// extract the substring eb6283670d from the artifactID, the commit sha is the last string after the hyphen before the last hyphen, we cannot garantee the length of the commit sha, so we cannot use a fixed length, so use a regex instead
 				commitSha := extractCommitSha(artifactID)
-				fmt.Println(commitSha)
+				fmt.Printf("Pod: %s in ns: %s - %s\n", pod.Name, pod.Namespace, commitSha)
 				// fmt.Println(artifactID)
 
 			}

@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: helloworld
   annotations:
-    lunarway.com/artifact-id: my-hello-world-app
+    hoeg.com/artifact-id: my-hello-123123-app
 spec:
   selector:
     matchLabels:
