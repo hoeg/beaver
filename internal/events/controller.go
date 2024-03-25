@@ -55,7 +55,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 			event := obj.(*corev1.Event)
 			slog.Debug("add event", "kind", event.InvolvedObject.Kind, "name", event.Name, "namespace", event.Namespace, "reason", event.Reason)
 			if event.InvolvedObject.Kind == "Deployment" || event.InvolvedObject.Kind == "ReplicaSet" || event.InvolvedObject.Kind == "StatefulSet" || event.InvolvedObject.Kind == "DaemonSet" || event.InvolvedObject.Kind == "Job" || event.InvolvedObject.Kind == "CronJob" {
-				var artifactID string
+				var artifactID, repo string
 				switch event.InvolvedObject.Kind {
 				case "Deployment":
 					deployment, err := c.clientset.AppsV1().Deployments(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -64,6 +64,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = deployment.Annotations[c.ArtifactIDKey]
+					repo = deployment.Labels["repo"]
 
 				case "ReplicaSet":
 					replicaSet, err := c.clientset.AppsV1().ReplicaSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -72,6 +73,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = replicaSet.Annotations[c.ArtifactIDKey]
+					repo = replicaSet.Labels["repo"]
 
 				case "StatefulSet":
 					statefulSet, err := c.clientset.AppsV1().StatefulSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -80,6 +82,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = statefulSet.Annotations[c.ArtifactIDKey]
+					repo = statefulSet.Labels["repo"]
 
 				case "DaemonSet":
 					daemonSet, err := c.clientset.AppsV1().DaemonSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -88,6 +91,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = daemonSet.Annotations[c.ArtifactIDKey]
+					repo = daemonSet.Labels["repo"]
 
 				case "Job":
 					job, err := c.clientset.BatchV1().Jobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -96,6 +100,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = job.Annotations[c.ArtifactIDKey]
+					repo = job.Labels["repo"]
 
 				case "CronJob":
 					cronJob, err := c.clientset.BatchV1beta1().CronJobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
@@ -104,6 +109,7 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 						return
 					}
 					artifactID = cronJob.Annotations[c.ArtifactIDKey]
+					repo = cronJob.Labels["repo"]
 
 				default:
 					slog.Error("Unsupported resource kind", "kind", event.InvolvedObject.Kind)
@@ -113,6 +119,10 @@ func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 				if artifactID != "" {
 					commitSha := extractCommitSha(artifactID)
 					slog.Info("Found artifactID", "Pod", event.InvolvedObject.Name, "namespace", event.Namespace, "commitSha", commitSha)
+				}
+
+				if repo != "" {
+					slog.Info("Found repo", "Pod", event.InvolvedObject.Name, "namespace", event.Namespace, "repo", repo)
 				} else {
 					slog.Debug("No artifact ID found", "Pod", event.InvolvedObject.Name, "namespace", event.Namespace)
 				}

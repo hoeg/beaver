@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         app: helloworld
+        repo: hello-world-service
     spec:
       containers:
       - name: helloworld
