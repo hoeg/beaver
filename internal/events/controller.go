@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -41,33 +42,78 @@ func Start(ctx context.Context, errCh chan<- error) error {
 	eventHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			event := obj.(*corev1.Event)
-			if event.InvolvedObject.Kind == "Pod" && (event.Reason == "Created" || event.Reason == "Updated" || event.Reason == "Scheduled") {
-				fmt.Println("New event:", event.Name)
-				pod, err := clientset.CoreV1().Pods(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
-				if err != nil {
-					runtime.HandleError(err)
+			slog.Debug("add event", "kind", event.InvolvedObject.Kind, "name", event.Name, "namespace", event.Namespace, "reason", event.Reason)
+			if event.InvolvedObject.Kind == "Deployment" || event.InvolvedObject.Kind == "ReplicaSet" || event.InvolvedObject.Kind == "StatefulSet" || event.InvolvedObject.Kind == "DaemonSet" || event.InvolvedObject.Kind == "Job" || event.InvolvedObject.Kind == "CronJob" {
+				var artifactID string
+				switch event.InvolvedObject.Kind {
+				case "Deployment":
+					deployment, err := clientset.AppsV1().Deployments(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = deployment.Annotations["hoeg.com/artifact-id"]
+
+				case "ReplicaSet":
+					replicaSet, err := clientset.AppsV1().ReplicaSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = replicaSet.Annotations["hoeg.com/artifact-id"]
+
+				case "StatefulSet":
+					statefulSet, err := clientset.AppsV1().StatefulSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = statefulSet.Annotations["hoeg.com/artifact-id"]
+
+				case "DaemonSet":
+					daemonSet, err := clientset.AppsV1().DaemonSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = daemonSet.Annotations["hoeg.com/artifact-id"]
+
+				case "Job":
+					job, err := clientset.BatchV1().Jobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = job.Annotations["hoeg.com/artifact-id"]
+
+				case "CronJob":
+					cronJob, err := clientset.BatchV1beta1().CronJobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					if err != nil {
+						runtime.HandleError(err)
+						return
+					}
+					artifactID = cronJob.Annotations["hoeg.com/artifact-id"]
+
+				default:
+					slog.Error("Unsupported resource kind", "kind", event.InvolvedObject.Kind)
 					return
 				}
-				//from the pod, get the value of the annotation lunarway.com/artifact-id: 'atl-2779-derp-eb6283670d-5855a38e0c' and extract the eb6283670d part as the commit sha
-				artifactID := pod.Annotations["hoeg.com/artifact-id"]
-				// extract the substring eb6283670d from the artifactID, the commit sha is the last string after the hyphen before the last hyphen, we cannot garantee the length of the commit sha, so we cannot use a fixed length, so use a regex instead
-				commitSha := extractCommitSha(artifactID)
-				fmt.Printf("Pod: %s in ns: %s - %s\n", pod.Name, pod.Namespace, commitSha)
-				// fmt.Println(artifactID)
-
+				// extract the commit sha from the artifactID
+				if artifactID != "" {
+					commitSha := extractCommitSha(artifactID)
+					slog.Info("Found artifactID", "Pod", event.InvolvedObject.Name, "namespace", event.Namespace, "commitSha", commitSha)
+				} else {
+					slog.Debug("No artifact ID found", "Pod", event.InvolvedObject.Name, "namespace", event.Namespace)
+				}
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			fmt.Printf("New event udpated: %v\n", newObj)
-			// Handle event updates if needed
-			oldEvent := oldObj.(*corev1.Event)
-			newEvent := newObj.(*corev1.Event)
-			if oldEvent.InvolvedObject.Kind == "Pod" && newEvent.InvolvedObject.Kind == "Pod" && newEvent.Reason == "Updated" {
-				fmt.Println("Updated event:", newEvent.Name)
-			}
+			event := newObj.(*corev1.Event)
+			slog.Debug("update event", "kind", event.InvolvedObject.Kind, "name", event.Name, "namespace", event.Namespace, "reason", event.Reason)
 		},
 		DeleteFunc: func(obj interface{}) {
-			fmt.Printf("New event delete: %v\n", obj)
+			event := obj.(*corev1.Event)
+			slog.Debug("delete event", "kind", event.InvolvedObject.Kind, "name", event.Name, "namespace", event.Namespace, "reason", event.Reason)
 		},
 	}
 
@@ -75,7 +121,7 @@ func Start(ctx context.Context, errCh chan<- error) error {
 	eventInformer.AddEventHandler(eventHandler)
 
 	// Start the informer
-	fmt.Println("Starting the event informer")
+	slog.Info("Starting the event informer")
 	stopCh = make(chan struct{})
 	go eventInformer.Run(stopCh)
 
@@ -89,7 +135,7 @@ func Start(ctx context.Context, errCh chan<- error) error {
 
 func Stop(ctx context.Context) error {
 	// Stop the informer
-	fmt.Println("Stopping the event informer")
+	slog.Info("Stopping the event informer")
 	close(stopCh)
 	return nil
 }
