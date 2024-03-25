@@ -6,6 +6,6 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["get", "watch", "list", "describe"]
-  - apiGroups: [""]
-    resources: ["pods"]
+  - apiGroups: ["*"]
+    resources: ["pods", "deployments", "daemonsets", "statefulsets", "replicasets", "jobs", "cronjobs"]
     verbs: ["get", "list", "describe"]

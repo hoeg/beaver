@@ -1,5 +1,10 @@
 #!/bin/bash
 
+#if my-cluster exists, delete it
+if kind get clusters | grep -q my-cluster; then
+  kind delete cluster --name my-cluster
+fi
+
 #build Docker image
 docker build -t beaver:test .
 
