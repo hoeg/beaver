@@ -1,4 +1,4 @@
-package events
+package event
 
 import (
 	"context"
@@ -16,24 +16,35 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var stopCh chan struct{}
+type Controller struct {
+	clientset     kubernetes.Interface
+	stopCh        chan struct{}
+	ArtifactIDKey string
+}
 
-func Start(ctx context.Context, errCh chan<- error) error {
+func NewEventController(artifactIDKey string) (*Controller, error) {
 	// Use the current context in kubeconfig
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		runtime.HandleError(err)
-		return err
+		return nil, err
 	}
 
 	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		runtime.HandleError(err)
-		return err
+		return nil, err
 	}
+
+	return &Controller{
+		clientset:     clientset,
+		stopCh:        make(chan struct{}),
+		ArtifactIDKey: artifactIDKey,
+	}, nil
+}
+
+func (c *Controller) Start(ctx context.Context, errCh chan<- error) error {
 	// Create a new shared informer factory
-	informerFactory := informers.NewSharedInformerFactory(clientset, time.Second*30)
+	informerFactory := informers.NewSharedInformerFactory(c.clientset, time.Second*30)
 
 	// Get the event informer from the factory
 	eventInformer := informerFactory.Core().V1().Events().Informer()
@@ -47,52 +58,52 @@ func Start(ctx context.Context, errCh chan<- error) error {
 				var artifactID string
 				switch event.InvolvedObject.Kind {
 				case "Deployment":
-					deployment, err := clientset.AppsV1().Deployments(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					deployment, err := c.clientset.AppsV1().Deployments(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = deployment.Annotations["hoeg.com/artifact-id"]
+					artifactID = deployment.Annotations[c.ArtifactIDKey]
 
 				case "ReplicaSet":
-					replicaSet, err := clientset.AppsV1().ReplicaSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					replicaSet, err := c.clientset.AppsV1().ReplicaSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = replicaSet.Annotations["hoeg.com/artifact-id"]
+					artifactID = replicaSet.Annotations[c.ArtifactIDKey]
 
 				case "StatefulSet":
-					statefulSet, err := clientset.AppsV1().StatefulSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					statefulSet, err := c.clientset.AppsV1().StatefulSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = statefulSet.Annotations["hoeg.com/artifact-id"]
+					artifactID = statefulSet.Annotations[c.ArtifactIDKey]
 
 				case "DaemonSet":
-					daemonSet, err := clientset.AppsV1().DaemonSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					daemonSet, err := c.clientset.AppsV1().DaemonSets(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = daemonSet.Annotations["hoeg.com/artifact-id"]
+					artifactID = daemonSet.Annotations[c.ArtifactIDKey]
 
 				case "Job":
-					job, err := clientset.BatchV1().Jobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					job, err := c.clientset.BatchV1().Jobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = job.Annotations["hoeg.com/artifact-id"]
+					artifactID = job.Annotations[c.ArtifactIDKey]
 
 				case "CronJob":
-					cronJob, err := clientset.BatchV1beta1().CronJobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
+					cronJob, err := c.clientset.BatchV1beta1().CronJobs(event.Namespace).Get(context.Background(), event.InvolvedObject.Name, metav1.GetOptions{})
 					if err != nil {
 						runtime.HandleError(err)
 						return
 					}
-					artifactID = cronJob.Annotations["hoeg.com/artifact-id"]
+					artifactID = cronJob.Annotations[c.ArtifactIDKey]
 
 				default:
 					slog.Error("Unsupported resource kind", "kind", event.InvolvedObject.Kind)
@@ -122,21 +133,20 @@ func Start(ctx context.Context, errCh chan<- error) error {
 
 	// Start the informer
 	slog.Info("Starting the event informer")
-	stopCh = make(chan struct{})
-	go eventInformer.Run(stopCh)
+	go eventInformer.Run(c.stopCh)
 
 	// Wait for the informer to sync
-	if !cache.WaitForCacheSync(stopCh, eventInformer.HasSynced) {
+	if !cache.WaitForCacheSync(c.stopCh, eventInformer.HasSynced) {
 		runtime.HandleError(fmt.Errorf("failed to sync informer cache"))
 	}
 
 	return nil
 }
 
-func Stop(ctx context.Context) error {
+func (c *Controller) Stop(ctx context.Context) error {
 	// Stop the informer
 	slog.Info("Stopping the event informer")
-	close(stopCh)
+	close(c.stopCh)
 	return nil
 }
 

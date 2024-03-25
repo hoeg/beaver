@@ -4,14 +4,14 @@ import (
 	"time"
 
 	"github.com/g4s8/go-lifecycle/pkg/types"
-	"github.com/hoeg/beaver/internal/events"
+	event "github.com/hoeg/beaver/internal/events"
 )
 
-func NewEventController() types.ServiceConfig {
+func NewEventController(e *event.Controller) types.ServiceConfig {
 	return types.ServiceConfig{
 		Name:         "k8s-event-controller",
-		StartupHook:  events.Start,
-		ShutdownHook: events.Stop,
+		StartupHook:  e.Start,
+		ShutdownHook: e.Stop,
 		RestartPolicy: types.ServiceRestartPolicy{
 			RestartOnFailure: true,
 			RestartCount:     3,

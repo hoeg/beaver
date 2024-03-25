@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/g4s8/go-lifecycle/pkg/lifecycle"
+	event "github.com/hoeg/beaver/internal/events"
 )
 
 func Start() {
@@ -12,7 +13,11 @@ func Start() {
 
 	lf := lifecycle.New(lifecycle.DefaultConfig)
 	svc.RegisterLifecycle("web", lf)
-	lf.RegisterService(NewEventController())
+	ec, err := event.NewEventController("hoeg.com/artifact-id")
+	if err != nil {
+		log.Fatalf("failed to create event controller: %v", err)
+	}
+	lf.RegisterService(NewEventController(ec))
 
 	lf.Start()
 	sig := lifecycle.NewSignalHandler(lf, nil)
