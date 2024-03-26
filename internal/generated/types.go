@@ -7,20 +7,30 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
-// Defines values for WebhookPayloadEventType.
-const (
-	BranchMerge WebhookPayloadEventType = "branch_merge"
-)
-
 // WebhookPayload defines model for WebhookPayload.
 type WebhookPayload struct {
-	BranchName *string                  `json:"branch_name,omitempty"`
-	CommitSha  *string                  `json:"commit_sha,omitempty"`
-	EventType  *WebhookPayloadEventType `json:"event_type,omitempty"`
+	After   *string `json:"after,omitempty"`
+	Before  *string `json:"before,omitempty"`
+	Commits *[]struct {
+		Author *struct {
+			Email *string `json:"email,omitempty"`
+			Name  *string `json:"name,omitempty"`
+		} `json:"author,omitempty"`
+		Id        *string `json:"id,omitempty"`
+		Message   *string `json:"message,omitempty"`
+		Timestamp *string `json:"timestamp,omitempty"`
+		Url       *string `json:"url,omitempty"`
+	} `json:"commits,omitempty"`
+	Pusher *struct {
+		Email *string `json:"email,omitempty"`
+		Name  *string `json:"name,omitempty"`
+	} `json:"pusher,omitempty"`
+	Ref        *string `json:"ref,omitempty"`
+	Repository *struct {
+		FullName *string `json:"full_name,omitempty"`
+		HtmlUrl  *string `json:"html_url,omitempty"`
+	} `json:"repository,omitempty"`
 }
-
-// WebhookPayloadEventType defines model for WebhookPayload.EventType.
-type WebhookPayloadEventType string
 
 // PostWebhookJSONRequestBody defines body for PostWebhook for application/json ContentType.
 type PostWebhookJSONRequestBody = WebhookPayload

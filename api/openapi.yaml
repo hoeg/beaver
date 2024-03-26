@@ -24,14 +24,46 @@ components:
     WebhookPayload:
       type: object
       properties:
-        event_type:
+        ref:
           type: string
-          enum:
-            - branch_merge
-        branch_name:
+        before:
           type: string
-        commit_sha:
+        after:
           type: string
+        repository:
+          type: object
+          properties:
+            full_name:
+              type: string
+            html_url:
+              type: string
+        pusher:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+        commits:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              message:
+                type: string
+              timestamp:
+                type: string
+              url:
+                type: string
+              author:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  email:
+                    type: string
 securitySchemes:
   BearerAuth:
     type: apiKey
